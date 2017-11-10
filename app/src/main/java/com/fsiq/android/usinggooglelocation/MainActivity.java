@@ -12,6 +12,7 @@ import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
 import android.util.Log;
 import android.view.View;
+import android.widget.Button;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -24,9 +25,11 @@ import com.google.android.gms.location.GeofencingRequest;
 import com.google.android.gms.location.LocationListener;
 import com.google.android.gms.location.LocationRequest;
 import com.google.android.gms.location.LocationServices;
+import com.google.android.gms.common.api.Status;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 
 public class MainActivity extends AppCompatActivity implements GoogleApiClient.ConnectionCallbacks, GoogleApiClient.OnConnectionFailedListener, ResultCallback{
     private static final String TAG = MainActivity.class.getSimpleName();
@@ -35,6 +38,7 @@ public class MainActivity extends AppCompatActivity implements GoogleApiClient.C
     LocationRequest mLocationRequest;
     PendingIntent mGeofencePendingIntent;
     GeofencingRequest mGeofencingRequest;
+    ArrayList<Geofence> geofenceList;
 
 
     @Override
@@ -50,6 +54,43 @@ public class MainActivity extends AppCompatActivity implements GoogleApiClient.C
                     .addApi(LocationServices.API)
                     .build();
         }
+
+        Button btn = (Button)findViewById(R.id.btn_addGeofence);
+
+
+    }
+
+    public void createGeofence(View view) {
+        Log.d(TAG, "Creating geofence");
+        TextView latt = (TextView)findViewById(R.id.tf_latitude);
+        TextView lonn = (TextView)findViewById(R.id.tf_longitude);
+        double lat = Double.parseDouble(latt.getText().toString());
+        double lon = Double.parseDouble(lonn.getText().toString());
+        createGeofence(lat, lon);
+
+        try{
+            LocationServices.GeofencingApi.addGeofences(
+                    mGoogleApiClient,
+                    getGeofencingRequest(),
+                    getGeofencePendingIntent()
+            ).setResultCallback(new ResultCallback<Status>() {
+
+                @Override
+                public void onResult(Status status) {
+                    if (status.isSuccess()) {
+                        Log.i(TAG, "Saving Geofence");
+
+                    } else {
+                        Log.e(TAG, "Registering geofence failed: " + status.getStatusMessage() +
+                                " : " + status.getStatusCode());
+                    }
+                }
+            });
+        }catch (SecurityException e){
+            e.printStackTrace();
+            Log.d(TAG, "Exception");
+        }
+
 
     }
 
@@ -126,63 +167,97 @@ public class MainActivity extends AppCompatActivity implements GoogleApiClient.C
 
     private void prepareLocation(){
         Log.d(TAG, "Prepare location");
-        getLastLocation();
+        Location loc = getLastLocation();
         setLocationRequest();
         getLocationUpdates();
-        createGeofence();
+        if(loc!=null)
+            createGeofence(loc.getLatitude(), loc.getLongitude());
+        try{
+            LocationServices.GeofencingApi.addGeofences(
+                    mGoogleApiClient,
+                    getGeofencingRequest(),
+                    getGeofencePendingIntent()
+            ).setResultCallback(new ResultCallback<Status>() {
+
+                @Override
+                public void onResult(Status status) {
+                    if (status.isSuccess()) {
+                        Log.i(TAG, "Saving Geofence");
+
+                    } else {
+                        Log.e(TAG, "Registering geofence failed: " + status.getStatusMessage() +
+                                " : " + status.getStatusCode());
+                    }
+                }
+            });
+        }catch (SecurityException e){
+            e.printStackTrace();
+            Log.d(TAG, "Exception");
+        }
+
     }
 
     private void createGeofence(){
+        String id = UUID.randomUUID().toString();
         Geofence geofence = new Geofence.Builder()
-                .setRequestId("oi")
+                .setRequestId(id)
                 .setCircularRegion((double)-23.6236, (double)-46.7001, 5)
                 .setTransitionTypes(Geofence.GEOFENCE_TRANSITION_ENTER|Geofence.GEOFENCE_TRANSITION_EXIT)
-                .setExpirationDuration((long)10)
+                .setExpirationDuration((long)40*60*1000)
                 .build();
-        ArrayList<Geofence> geofenceList = new ArrayList<Geofence>();
+        geofenceList = new ArrayList<Geofence>();
         geofenceList.add(geofence);
 
+    }
+
+    private List<Geofence> createGeofence(double lat, double lon){
+        String id = UUID.randomUUID().toString();
+        Geofence geofence = new Geofence.Builder()
+                .setRequestId(id)
+                .setCircularRegion(lat, lon, 15)
+                .setTransitionTypes(Geofence.GEOFENCE_TRANSITION_ENTER|Geofence.GEOFENCE_TRANSITION_EXIT)
+                .setExpirationDuration((long)40*60*1000)
+                .build();
+        geofenceList = new ArrayList<Geofence>();
+        geofenceList.add(geofence);
+        return geofenceList;
+
+    }
+
+    private GeofencingRequest getGeofencingRequest(){
         GeofencingRequest.Builder builder = new GeofencingRequest.Builder();
         builder.setInitialTrigger(GeofencingRequest.INITIAL_TRIGGER_ENTER);
         builder.addGeofences(geofenceList);
-        mGeofencingRequest = builder.build();
-
-        getGeofencePendingIntent();
-
+        return builder.build();
     }
+
     @SuppressWarnings("MissingPermission")
-    private void getGeofencePendingIntent() {
+    private PendingIntent getGeofencePendingIntent() {
         // Reuse the PendingIntent if we already have it.
-        //if (mGeofencePendingIntent != null) {
-        //    return mGeofencePendingIntent;
-        //}
+        if (mGeofencePendingIntent != null) {
+            return mGeofencePendingIntent;
+        }
         Intent intent = new Intent(this, GeofenceTransitionsIntentService.class);
         // We use FLAG_UPDATE_CURRENT so that we get the same pending intent back when
         // calling addGeofences() and removeGeofences().
-        mGeofencePendingIntent = PendingIntent.getService(this, 0, intent, PendingIntent.FLAG_UPDATE_CURRENT);
-
-        LocationServices.GeofencingApi.addGeofences(
-                mGoogleApiClient,
-                mGeofencingRequest,
-                mGeofencePendingIntent
-        ).setResultCallback(MainActivity.this);
-
-
+        return PendingIntent.getService(this, 0, intent, PendingIntent.
+                FLAG_UPDATE_CURRENT);
     }
 
     @SuppressWarnings("MissingPermission")
-    private void getLastLocation() {
+    private Location getLastLocation() {
         Log.d(TAG, "Get Last Location");
         Location loc = LocationServices.FusedLocationApi.getLastLocation(mGoogleApiClient);
         if(loc != null)
             printLocation(loc);
+        return loc;
     }
 
     private void setLocationRequest(){
         Log.d(TAG, "set location request");
         mLocationRequest = new LocationRequest()
-                .setInterval(10 * 1000)
-                .setFastestInterval(5 * 1000)
+                .setInterval(5 * 1000)
+                .setFastestInterval(2 * 1000)
                 .setPriority(LocationRequest.PRIORITY_HIGH_ACCURACY);
 
     }

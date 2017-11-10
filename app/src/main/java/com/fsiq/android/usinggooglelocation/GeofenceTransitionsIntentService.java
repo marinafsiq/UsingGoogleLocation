@@ -37,19 +37,18 @@ public class GeofenceTransitionsIntentService extends IntentService {
         if (geofenceTransition == Geofence.GEOFENCE_TRANSITION_ENTER ||
                 geofenceTransition == Geofence.GEOFENCE_TRANSITION_EXIT) {
 
-            // Get the geofences that were triggered. A single event can trigger
-            // multiple geofences.
+            // Get the geofences that were triggered. A single event can trigger multiple geofences.
             List triggeringGeofences = geofencingEvent.getTriggeringGeofences();
-
-            // Get the transition details as a String.
 
 
             // Send notification and log the transition details.
-            Toast.makeText(this, "Geofence funcionou!!!!", Toast.LENGTH_LONG);
+            Toast toast = Toast.makeText(this, "Geofence funcionou!!!!", Toast.LENGTH_LONG);
+            toast.show();
             Log.i(TAG, "geofence intent");
         } else {
             // Log the error.
-            Toast.makeText(this, "Geofence funcionou 2!!!!", Toast.LENGTH_LONG);
+            Toast toast = Toast.makeText(this, "Geofence funcionou 2!!!!", Toast.LENGTH_LONG);
+            toast.show();
         }
 
     }
